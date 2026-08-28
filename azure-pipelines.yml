@@ -55,13 +55,13 @@ stages:
           - task: Cache@2
             displayName: Cache npm download cache
             inputs:
-              key: 'npm | "$(Agent.OS)" | package-lock.json'
+              key: 'npm | "$(Agent.OS)" | package.json'
               restoreKeys: |
                 npm | "$(Agent.OS)"
               path: $(Pipeline.Workspace)/.npm
 
-          - script: npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
-            displayName: npm ci
+          - script: npm install --cache $(Pipeline.Workspace)/.npm --prefer-offline --no-audit --no-fund
+            displayName: Install dependencies
 
           - script: npm test
             displayName: Contract and unit tests
@@ -121,6 +121,7 @@ stages:
       shellImageRepository: '$(shellImageRepository)'
       paymentsImageRepository: '$(paymentsImageRepository)'
       imageTag: '$(imageTag)'
+      commitSha: '$(Build.SourceVersion)'
       runtimeEnvironment: dev
       apiBaseUrl: '$(apiBaseUrlDev)'
       paymentsRemoteEntry: '$(paymentsRemoteEntryDev)'
@@ -138,6 +139,7 @@ stages:
       shellImageRepository: '$(shellImageRepository)'
       paymentsImageRepository: '$(paymentsImageRepository)'
       imageTag: '$(imageTag)'
+      commitSha: '$(Build.SourceVersion)'
       runtimeEnvironment: hml
       apiBaseUrl: '$(apiBaseUrlHml)'
       paymentsRemoteEntry: '$(paymentsRemoteEntryHml)'
@@ -155,6 +157,7 @@ stages:
       shellImageRepository: '$(shellImageRepository)'
       paymentsImageRepository: '$(paymentsImageRepository)'
       imageTag: '$(imageTag)'
+      commitSha: '$(Build.SourceVersion)'
       runtimeEnvironment: prd
       apiBaseUrl: '$(apiBaseUrlPrd)'
       paymentsRemoteEntry: '$(paymentsRemoteEntryPrd)'

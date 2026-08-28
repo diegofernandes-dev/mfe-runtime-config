@@ -1,0 +1,160 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - README.md
+      - docs/**
+
+pr:
+  branches:
+    include:
+      - main
+
+name: $(Date:yyyyMMdd).$(Rev:r)
+
+parameters:
+  - name: publishContainers
+    type: boolean
+    default: false
+  - name: deployDev
+    type: boolean
+    default: false
+  - name: deployHml
+    type: boolean
+    default: false
+  - name: deployPrd
+    type: boolean
+    default: false
+
+variables:
+  nodeVersion: '22.x'
+  shellImageRepository: 'mfe-runtime-config/shell'
+  paymentsImageRepository: 'mfe-runtime-config/payments'
+  imageTag: '$(Build.BuildId)'
+
+stages:
+  - stage: Validate
+    displayName: Validate source
+    jobs:
+      - job: Quality
+        displayName: Install, test and build
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            clean: true
+            fetchDepth: 1
+
+          - task: NodeTool@0
+            displayName: Use Node.js $(nodeVersion)
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: Cache npm download cache
+            inputs:
+              key: 'npm | "$(Agent.OS)" | package-lock.json'
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+              path: $(Pipeline.Workspace)/.npm
+
+          - script: npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline
+            displayName: npm ci
+
+          - script: npm test
+            displayName: Contract and unit tests
+
+          - script: npm run build
+            displayName: Production build
+
+          - script: |
+              test -d dist/shell/browser
+              test -d dist/payments/browser
+            displayName: Verify production outputs
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publish immutable web build
+            inputs:
+              targetPath: $(System.DefaultWorkingDirectory)/dist
+              artifact: web-dist
+              publishLocation: pipeline
+
+  - stage: Containers
+    displayName: Build immutable containers
+    dependsOn: Validate
+    condition: and(succeeded(), ${{ eq(parameters.publishContainers, true) }}, ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      - job: BuildAndPush
+        displayName: Shell and payments images
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            clean: true
+            fetchDepth: 1
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download validated web build
+            inputs:
+              artifact: web-dist
+              path: $(System.DefaultWorkingDirectory)/dist
+
+          - template: pipelines/templates/docker-build-push.yml
+            parameters:
+              dockerRegistryServiceConnection: '$(dockerRegistryServiceConnection)'
+              shellImageRepository: '$(shellImageRepository)'
+              paymentsImageRepository: '$(paymentsImageRepository)'
+              imageTag: '$(imageTag)'
+
+  - template: pipelines/templates/deploy-stage.yml
+    parameters:
+      stageName: DeployDev
+      displayName: Deploy DEV
+      environmentName: mfe-runtime-config-dev
+      enabled: ${{ and(parameters.publishContainers, parameters.deployDev) }}
+      dependsOn: Containers
+      kubernetesServiceConnection: '$(kubernetesServiceConnectionDev)'
+      namespace: '$(kubernetesNamespaceDev)'
+      containerRegistry: '$(containerRegistry)'
+      shellImageRepository: '$(shellImageRepository)'
+      paymentsImageRepository: '$(paymentsImageRepository)'
+      imageTag: '$(imageTag)'
+      runtimeEnvironment: dev
+      apiBaseUrl: '$(apiBaseUrlDev)'
+      paymentsRemoteEntry: '$(paymentsRemoteEntryDev)'
+
+  - template: pipelines/templates/deploy-stage.yml
+    parameters:
+      stageName: DeployHml
+      displayName: Deploy HML
+      environmentName: mfe-runtime-config-hml
+      enabled: ${{ and(parameters.publishContainers, parameters.deployHml) }}
+      dependsOn: DeployDev
+      kubernetesServiceConnection: '$(kubernetesServiceConnectionHml)'
+      namespace: '$(kubernetesNamespaceHml)'
+      containerRegistry: '$(containerRegistry)'
+      shellImageRepository: '$(shellImageRepository)'
+      paymentsImageRepository: '$(paymentsImageRepository)'
+      imageTag: '$(imageTag)'
+      runtimeEnvironment: hml
+      apiBaseUrl: '$(apiBaseUrlHml)'
+      paymentsRemoteEntry: '$(paymentsRemoteEntryHml)'
+
+  - template: pipelines/templates/deploy-stage.yml
+    parameters:
+      stageName: DeployPrd
+      displayName: Deploy PRD
+      environmentName: mfe-runtime-config-prd
+      enabled: ${{ and(parameters.publishContainers, parameters.deployPrd) }}
+      dependsOn: DeployHml
+      kubernetesServiceConnection: '$(kubernetesServiceConnectionPrd)'
+      namespace: '$(kubernetesNamespacePrd)'
+      containerRegistry: '$(containerRegistry)'
+      shellImageRepository: '$(shellImageRepository)'
+      paymentsImageRepository: '$(paymentsImageRepository)'
+      imageTag: '$(imageTag)'
+      runtimeEnvironment: prd
+      apiBaseUrl: '$(apiBaseUrlPrd)'
+      paymentsRemoteEntry: '$(paymentsRemoteEntryPrd)'

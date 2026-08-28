@@ -22,6 +22,8 @@ parameters:
     type: string
   - name: imageTag
     type: string
+  - name: commitSha
+    type: string
   - name: runtimeEnvironment
     type: string
   - name: apiBaseUrl
@@ -33,7 +35,7 @@ stages:
   - stage: ${{ parameters.stageName }}
     displayName: ${{ parameters.displayName }}
     dependsOn: ${{ parameters.dependsOn }}
-    condition: and(succeeded(), ${{ eq(parameters.enabled, true) }}, eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: and(in(dependencies.${{ parameters.dependsOn }}.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), ${{ eq(parameters.enabled, true) }}, eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
       - deployment: Deploy
         displayName: Deploy immutable build
@@ -48,15 +50,23 @@ stages:
 
                 - bash: |
                     set -euo pipefail
-                    mkdir -p $(Pipeline.Workspace)/rendered
-                    sed \
-                      -e 's|__APP_ENVIRONMENT__|${{ parameters.runtimeEnvironment }}|g' \
-                      -e 's|__APP_VERSION__|${{ parameters.imageTag }}|g' \
-                      -e 's|__API_BASE_URL__|${{ parameters.apiBaseUrl }}|g' \
-                      -e 's|__PAYMENTS_REMOTE_ENTRY__|${{ parameters.paymentsRemoteEntry }}|g' \
-                      deploy/k8s/runtime-config.template.yaml \
-                      > $(Pipeline.Workspace)/rendered/runtime-config.yaml
-                  displayName: Render environment runtime config
+                    RENDER='python3 pipelines/scripts/render-manifests.py'
+                    OUT='$(Pipeline.Workspace)/rendered'
+                    mkdir -p "$OUT"
+
+                    $RENDER --template deploy/k8s/runtime-config.template.yaml --output "$OUT/runtime-config.yaml" \
+                      --set 'APP_ENVIRONMENT=${{ parameters.runtimeEnvironment }}' \
+                      --set 'APP_VERSION=${{ parameters.imageTag }}' \
+                      --set 'APP_COMMIT_SHA=${{ parameters.commitSha }}' \
+                      --set 'API_BASE_URL=${{ parameters.apiBaseUrl }}' \
+                      --set 'PAYMENTS_REMOTE_ENTRY=${{ parameters.paymentsRemoteEntry }}'
+
+                    $RENDER --template deploy/k8s/shell.template.yaml --output "$OUT/shell.yaml" \
+                      --set 'SHELL_IMAGE=${{ parameters.containerRegistry }}/${{ parameters.shellImageRepository }}:${{ parameters.imageTag }}'
+
+                    $RENDER --template deploy/k8s/payments.template.yaml --output "$OUT/payments.yaml" \
+                      --set 'PAYMENTS_IMAGE=${{ parameters.containerRegistry }}/${{ parameters.paymentsImageRepository }}:${{ parameters.imageTag }}'
+                  displayName: Render environment manifests
 
                 - task: KubernetesManifest@1
                   displayName: Deploy manifests
@@ -67,8 +77,5 @@ stages:
                     namespace: ${{ parameters.namespace }}
                     manifests: |
                       $(Pipeline.Workspace)/rendered/runtime-config.yaml
-                      deploy/k8s/shell.yaml
-                      deploy/k8s/payments.yaml
-                    containers: |
-                      ${{ parameters.containerRegistry }}/${{ parameters.shellImageRepository }}:${{ parameters.imageTag }}
-                      ${{ parameters.containerRegistry }}/${{ parameters.paymentsImageRepository }}:${{ parameters.imageTag }}
+                      $(Pipeline.Workspace)/rendered/shell.yaml
+                      $(Pipeline.Workspace)/rendered/payments.yaml

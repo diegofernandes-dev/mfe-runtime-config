@@ -1,0 +1,1 @@
+# mfe-runtime-config

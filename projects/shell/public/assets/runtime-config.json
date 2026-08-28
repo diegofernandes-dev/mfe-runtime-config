@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1",
+  "environment": "local",
+  "release": { "application": "mfe-shell", "version": "0.1.0-local", "commitSha": "localdev" },
+  "api": { "baseUrl": "http://localhost:8080", "timeoutMs": 10000 },
+  "observability": { "logLevel": "debug" },
+  "features": { "payments": true },
+  "remotes": [{ "name": "payments", "remoteEntry": "http://localhost:4201/remoteEntry.json", "exposedModule": "./Routes", "route": "payments", "enabled": true }]
+}

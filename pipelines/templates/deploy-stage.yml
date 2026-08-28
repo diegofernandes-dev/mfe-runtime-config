@@ -1,0 +1,81 @@
+parameters:
+  - name: stageName
+    type: string
+  - name: displayName
+    type: string
+  - name: environmentName
+    type: string
+  - name: enabled
+    type: boolean
+    default: false
+  - name: dependsOn
+    type: string
+  - name: kubernetesServiceConnection
+    type: string
+  - name: namespace
+    type: string
+  - name: containerRegistry
+    type: string
+  - name: shellImageRepository
+    type: string
+  - name: paymentsImageRepository
+    type: string
+  - name: imageTag
+    type: string
+  - name: commitSha
+    type: string
+  - name: runtimeEnvironment
+    type: string
+  - name: apiBaseUrl
+    type: string
+  - name: paymentsRemoteEntry
+    type: string
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: and(in(dependencies.${{ parameters.dependsOn }}.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'), ${{ eq(parameters.enabled, true) }}, eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: Deploy
+        displayName: Deploy immutable build
+        environment: ${{ parameters.environmentName }}
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - bash: |
+                    set -euo pipefail
+                    RENDER='python3 pipelines/scripts/render-manifests.py'
+                    OUT='$(Pipeline.Workspace)/rendered'
+                    mkdir -p "$OUT"
+
+                    $RENDER --template deploy/k8s/runtime-config.template.yaml --output "$OUT/runtime-config.yaml" \
+                      --set 'APP_ENVIRONMENT=${{ parameters.runtimeEnvironment }}' \
+                      --set 'APP_VERSION=${{ parameters.imageTag }}' \
+                      --set 'APP_COMMIT_SHA=${{ parameters.commitSha }}' \
+                      --set 'API_BASE_URL=${{ parameters.apiBaseUrl }}' \
+                      --set 'PAYMENTS_REMOTE_ENTRY=${{ parameters.paymentsRemoteEntry }}'
+
+                    $RENDER --template deploy/k8s/shell.template.yaml --output "$OUT/shell.yaml" \
+                      --set 'SHELL_IMAGE=${{ parameters.containerRegistry }}/${{ parameters.shellImageRepository }}:${{ parameters.imageTag }}'
+
+                    $RENDER --template deploy/k8s/payments.template.yaml --output "$OUT/payments.yaml" \
+                      --set 'PAYMENTS_IMAGE=${{ parameters.containerRegistry }}/${{ parameters.paymentsImageRepository }}:${{ parameters.imageTag }}'
+                  displayName: Render environment manifests
+
+                - task: KubernetesManifest@1
+                  displayName: Deploy manifests
+                  inputs:
+                    action: deploy
+                    connectionType: kubernetesServiceConnection
+                    kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
+                    namespace: ${{ parameters.namespace }}
+                    manifests: |
+                      $(Pipeline.Workspace)/rendered/runtime-config.yaml
+                      $(Pipeline.Workspace)/rendered/shell.yaml
+                      $(Pipeline.Workspace)/rendered/payments.yaml

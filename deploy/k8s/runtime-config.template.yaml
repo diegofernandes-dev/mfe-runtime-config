@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mfe-shell-runtime-config
+data:
+  APP_ENVIRONMENT: "__APP_ENVIRONMENT__"
+  APP_VERSION: "__APP_VERSION__"
+  APP_COMMIT_SHA: "__APP_COMMIT_SHA__"
+  API_BASE_URL: "__API_BASE_URL__"
+  PAYMENTS_REMOTE_ENTRY: "__PAYMENTS_REMOTE_ENTRY__"

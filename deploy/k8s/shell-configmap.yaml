@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mfe-shell-runtime
+  labels: { app.kubernetes.io/name: mfe-shell }
+data:
+  APP_ENVIRONMENT: hml
+  API_BASE_URL: https://api-hml.example.internal
+  PAYMENTS_REMOTE_ENTRY: https://payments-hml.example.internal/remoteEntry.json

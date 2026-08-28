@@ -1,0 +1,93 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "shell": {
+      "projectType": "application",
+      "root": "projects/shell",
+      "sourceRoot": "projects/shell/src",
+      "architect": {
+        "build": {
+          "builder": "@angular-architects/native-federation:build",
+          "options": {},
+          "configurations": {
+            "production": { "target": "shell:esbuild:production" },
+            "development": { "target": "shell:esbuild:development", "dev": true }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-architects/native-federation:build",
+          "options": { "target": "shell:serve-original:development", "rebuildDelay": 0, "dev": true }
+        },
+        "esbuild": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/shell",
+            "index": "projects/shell/src/index.html",
+            "browser": "projects/shell/src/main.ts",
+            "tsConfig": "projects/shell/tsconfig.app.json",
+            "assets": [{ "glob": "**/*", "input": "projects/shell/public" }],
+            "styles": ["projects/shell/src/styles.css"]
+          },
+          "configurations": {
+            "production": { "budgets": [{ "type": "initial", "maximumWarning": "600kB", "maximumError": "1MB" }], "outputHashing": "all" },
+            "development": { "optimization": false, "sourceMap": true }
+          }
+        },
+        "serve-original": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "development": { "buildTarget": "shell:esbuild:development" },
+            "production": { "buildTarget": "shell:esbuild:production" }
+          },
+          "defaultConfiguration": "development"
+        }
+      }
+    },
+    "payments": {
+      "projectType": "application",
+      "root": "projects/payments",
+      "sourceRoot": "projects/payments/src",
+      "architect": {
+        "build": {
+          "builder": "@angular-architects/native-federation:build",
+          "options": {},
+          "configurations": {
+            "production": { "target": "payments:esbuild:production" },
+            "development": { "target": "payments:esbuild:development", "dev": true }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-architects/native-federation:build",
+          "options": { "target": "payments:serve-original:development", "rebuildDelay": 0, "dev": true }
+        },
+        "esbuild": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/payments",
+            "index": "projects/payments/src/index.html",
+            "browser": "projects/payments/src/main.ts",
+            "tsConfig": "projects/payments/tsconfig.app.json",
+            "assets": [{ "glob": "**/*", "input": "projects/payments/public" }],
+            "styles": ["projects/payments/src/styles.css"]
+          },
+          "configurations": {
+            "production": { "outputHashing": "all" },
+            "development": { "optimization": false, "sourceMap": true }
+          }
+        },
+        "serve-original": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "development": { "buildTarget": "payments:esbuild:development" },
+            "production": { "buildTarget": "payments:esbuild:production" }
+          },
+          "defaultConfiguration": "development"
+        }
+      }
+    }
+  }
+}

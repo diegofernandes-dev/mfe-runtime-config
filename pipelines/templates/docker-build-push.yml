@@ -1,0 +1,32 @@
+parameters:
+  - name: dockerRegistryServiceConnection
+    type: string
+  - name: shellImageRepository
+    type: string
+  - name: paymentsImageRepository
+    type: string
+  - name: imageTag
+    type: string
+
+steps:
+  - task: Docker@2
+    displayName: Build and push shell
+    inputs:
+      command: buildAndPush
+      containerRegistry: ${{ parameters.dockerRegistryServiceConnection }}
+      repository: ${{ parameters.shellImageRepository }}
+      dockerfile: deploy/shell/Dockerfile
+      buildContext: $(System.DefaultWorkingDirectory)
+      tags: |
+        ${{ parameters.imageTag }}
+
+  - task: Docker@2
+    displayName: Build and push payments remote
+    inputs:
+      command: buildAndPush
+      containerRegistry: ${{ parameters.dockerRegistryServiceConnection }}
+      repository: ${{ parameters.paymentsImageRepository }}
+      dockerfile: deploy/payments/Dockerfile
+      buildContext: $(System.DefaultWorkingDirectory)
+      tags: |
+        ${{ parameters.imageTag }}
